@@ -1,4 +1,4 @@
-# sizelimit
+# krakend-sizelimit
 
 The `sizelimit` middleware can be used to limit the request size of incoming
 requests.
@@ -18,14 +18,13 @@ handlerFactory = sizelimit.HandlerFactory(handlerFactory)
 
 ## Usage
 
-The `sizelimit` middleware can be added to an endpoint's `extra_config` and allows
-to define the maximum request body size in bytes:
+Add `sizelimit` to the endpoint's `extra_config` and define the maximum request
+body size in bytes:
 
 ```json
 "endpoints": [
   {
     "endpoint": "/test",
-    "method": "POST",
     "extra_config": {
       "kivra/sizelimit": {
         "max_bytes": 10
