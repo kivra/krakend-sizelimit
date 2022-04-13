@@ -3,27 +3,29 @@ package sizelimit
 import (
 	"bytes"
 	"encoding/json"
+	"regexp"
+	"strconv"
 
-	limits "github.com/gin-contrib/size"
-	"github.com/gin-gonic/gin"
 	"github.com/luraproject/lura/v2/config"
-	"github.com/luraproject/lura/v2/proxy"
-	krakendgin "github.com/luraproject/lura/v2/router/gin"
 )
 
 const Namespace = "kivra/sizelimit"
 
 type Config struct {
-	MaxBytes int64 `json:"max_bytes"`
+	MaxSize string `json:"max_size"`
 }
 
-func ConfigGetter(e config.ExtraConfig) (*Config, bool) {
-	cfg := new(Config)
+type ConfigInternal struct {
+	MaxSize int64 `json:"max_size"`
+}
 
+func ConfigGetter(e config.ExtraConfig) (*ConfigInternal, bool) {
 	tmp, ok := e[Namespace]
 	if !ok {
-		return cfg, false
+		return new(ConfigInternal), false
 	}
+
+	cfg := new(Config)
 
 	buf := new(bytes.Buffer)
 	if err := json.NewEncoder(buf).Encode(tmp); err != nil {
@@ -33,23 +35,42 @@ func ConfigGetter(e config.ExtraConfig) (*Config, bool) {
 		panic("sizelimit: Error: failed to parse config")
 	}
 
-	return cfg, true
+	cfgInternal := new(ConfigInternal)
+	cfgInternal.MaxSize = ParseMaxSize(cfg)
+
+	return cfgInternal, true
 }
 
-func HandlerFactory(next krakendgin.HandlerFactory) krakendgin.HandlerFactory {
-	return func(remote *config.EndpointConfig, p proxy.Proxy) gin.HandlerFunc {
-		handlerFunc := next(remote, p)
+func ParseMaxSize(cfg *Config) int64 {
+	rex := regexp.MustCompile(`^([\d.]+)([a-zA-Z]*)$`)
+	matches := rex.FindStringSubmatch(cfg.MaxSize)
 
-		cfg, ok := ConfigGetter(remote.ExtraConfig)
-		if !ok {
-			return handlerFunc
-		}
-
-		limiter := limits.RequestSizeLimiter(cfg.MaxBytes)
-
-		return func(c *gin.Context) {
-			limiter(c)
-			handlerFunc(c)
-		}
+	if matches == nil || len(matches) != 3 || matches[0] != cfg.MaxSize {
+		panic("sizelimit: Error: invalid value for 'max_size'")
 	}
+
+	value, err := strconv.ParseFloat(matches[1], 64)
+
+	if err != nil {
+		panic("sizelimit: Error: invalid value for 'max_size'")
+	}
+
+	var multiplier float64
+	switch matches[2] {
+	case "":
+		multiplier = 1
+	case "B":
+		multiplier = 1
+	case "kB":
+		multiplier = 1000
+	case "MB":
+		multiplier = 1000000
+	case "GB":
+		multiplier = 1000000000
+	case "TB":
+		multiplier = 1000000000000
+	default:
+		panic("sizelimit: Error: unknown unit: " + cfg.MaxSize)
+	}
+	return int64(value * multiplier)
 }
