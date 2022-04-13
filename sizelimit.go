@@ -45,8 +45,10 @@ func HandlerFactory(next krakendgin.HandlerFactory) krakendgin.HandlerFactory {
 			return handlerFunc
 		}
 
+		limiter := limits.RequestSizeLimiter(cfg.MaxBytes)
+
 		return func(c *gin.Context) {
-			limits.RequestSizeLimiter(cfg.MaxBytes)(c)
+			limiter(c)
 			handlerFunc(c)
 		}
 	}
