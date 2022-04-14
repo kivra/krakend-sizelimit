@@ -19,7 +19,9 @@ handlerFactory = sizelimit.HandlerFactory(handlerFactory)
 ## Usage
 
 Add `sizelimit` to the endpoint's `extra_config` and define the maximum request
-body size in bytes:
+body size. If no unit is specified, `max_size` is assumed to have unit `bytes`.
+Other units can be specified explictly: `B` (bytes, same as no unit), `kB`,
+`MB`, `GB`, `TB`.
 
 ```json
 "endpoints": [
@@ -27,7 +29,7 @@ body size in bytes:
     "endpoint": "/test",
     "extra_config": {
       "kivra/sizelimit": {
-        "max_bytes": 10
+        "max_size": "10MB"
       }
     },
     "backend": [ "..." ]
