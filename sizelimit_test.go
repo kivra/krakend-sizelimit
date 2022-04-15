@@ -2,6 +2,7 @@ package sizelimit
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -92,51 +93,56 @@ func TestTB(t *testing.T) {
 
 func TestRequestSizeBelowLimit(t *testing.T) {
 	body := []byte("hello")
-	router := makeRouter(int64(len(body)) + 1)
-	code := performRequest(body, router)
+	router := makeRouter(int64(len(body))+1, body)
+	res := performRequest(body, router)
 
-	if code != http.StatusOK {
-		t.Fatalf("returned status %v. should return 200", code)
+	if res.Code != http.StatusOK {
+		t.Fatalf("returned %v '%s'. should return 200", res.Code, res.Body)
 	}
 }
 
 func TestRequestSizeAtLimit(t *testing.T) {
 	body := []byte("hello")
-	router := makeRouter(int64(len(body)))
-	code := performRequest(body, router)
+	router := makeRouter(int64(len(body)), body)
+	res := performRequest(body, router)
 
-	if code != http.StatusOK {
-		t.Fatalf("returned status %v. should return 200", code)
+	if res.Code != http.StatusOK {
+		t.Fatalf("returned %v %s. should return 200", res.Code, res.Body)
 	}
 }
 
 func TestRequestSizeAboveLimit(t *testing.T) {
 	body := []byte("hello")
-	router := makeRouter(int64(len(body)) - 1)
-	code := performRequest(body, router)
+	router := makeRouter(int64(len(body))-1, body)
+	res := performRequest(body, router)
 
-	if code != http.StatusRequestEntityTooLarge {
-		t.Fatalf("returned status %v. should return 413", code)
+	if res.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("returned %v %s. should return 413", res.Code, res.Body)
 	}
 }
 
-func makeRouter(limit int64) *gin.Engine {
+func makeRouter(limit int64, bodySent []byte) *gin.Engine {
 	router := gin.New()
 	limiter := func(c *gin.Context) {
 		LimiterFactory(limit, func(c *gin.Context) { c.Next() })(c)
 	}
 	success := func(c *gin.Context) {
-		c.String(http.StatusOK, "OK")
+		body, _ := io.ReadAll(c.Request.Body)
+		if !bytes.Equal(body, bodySent) {
+			c.String(http.StatusInternalServerError, string(body))
+		} else {
+			c.String(http.StatusOK, "OK")
+		}
 	}
 	router.POST("/test", limiter, success)
 	return router
 }
 
-func performRequest(body []byte, router *gin.Engine) int {
+func performRequest(body []byte, router *gin.Engine) *httptest.ResponseRecorder {
 	buf := new(bytes.Buffer)
 	buf.Write(body)
 	r := httptest.NewRequest(http.MethodPost, "/test", buf)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	return w.Code
+	return w
 }
