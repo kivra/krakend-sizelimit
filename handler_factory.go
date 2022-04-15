@@ -1,7 +1,7 @@
 package sizelimit
 
 import (
-	"errors"
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,15 +14,16 @@ import (
 )
 
 func ExceedsSizeLimit(c *gin.Context, limit int64) bool {
-	c.Request.Body = &maxBytesReader{
-		rdr:        c.Request.Body,
-		remaining:  limit,
-		wasAborted: false,
-		sawEOF:     false,
+	contentLength := c.Request.Header.Get("Content-Length")
+	size, _ := strconv.ParseInt(contentLength, 10, 64)
+	if size > limit { // trust Content-Length header only if it exceeds MaxSize
+		return true
 	}
-	_, err := io.ReadAll(c.Request.Body)
-	c.Request.Body.Close()
-	return errors.Is(err, ErrTooLarge)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
+	bodyBuffer := new(bytes.Buffer)
+	_, err := io.Copy(bodyBuffer, c.Request.Body)
+	c.Request.Body = io.NopCloser(bodyBuffer)
+	return err != nil
 }
 
 func LimiterFactory(limit int64, handlerFunc gin.HandlerFunc) gin.HandlerFunc {
@@ -33,10 +34,7 @@ func LimiterFactory(limit int64, handlerFunc gin.HandlerFunc) gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
-		contentLength := c.Request.Header.Get("Content-Length")
-		size, _ := strconv.ParseInt(contentLength, 10, 64)
-		// trust Content-Length header only if it exceeds MaxSize
-		if size > limit || ExceedsSizeLimit(c, limit) {
+		if ExceedsSizeLimit(c, limit) {
 			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, respBody)
 			return
 		}
