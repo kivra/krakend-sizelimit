@@ -9,7 +9,7 @@ To install `sizelimit` from GitHub:
 
     go get -u github.com/kivra/krakend-sizelimit@<commit hash>
 
-Then add `sizelimit` to the KrakenD [`handler_factory`](https://github.com/devopsfaith/krakend-ce/blob/master/handler_factory.go)
+Then add `sizelimit` to the KrakenD [`handler_factory`](https://github.com/krakendio/krakend-ce/blob/master/handler_factory.go)
 chain:
 
 ```go
