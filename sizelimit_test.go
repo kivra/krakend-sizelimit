@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	apierrors "github.com/kivra/kivra-api-errors"
 )
 
 func TestIntNoUnit(t *testing.T) {
@@ -118,6 +119,11 @@ func TestRequestSizeAboveLimit(t *testing.T) {
 
 	if res.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("returned %v %s. should return 413", res.Code, res.Body)
+	}
+
+	errorCode := res.Header().Get(apierrors.ErrorCodeHeader)
+	if errorCode != "41300" {
+		t.Fatalf("returned %s. should return 41300", errorCode)
 	}
 }
 

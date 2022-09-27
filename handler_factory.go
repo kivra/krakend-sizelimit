@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	apierrors "github.com/kivra/kivra-api-errors"
 	"github.com/luraproject/lura/v2/config"
 	"github.com/luraproject/lura/v2/proxy"
 	krakendgin "github.com/luraproject/lura/v2/router/gin"
@@ -27,15 +28,14 @@ func ExceedsSizeLimit(c *gin.Context, limit int64) bool {
 }
 
 func LimiterFactory(limit int64, handlerFunc gin.HandlerFunc) gin.HandlerFunc {
-	respBody := map[string]interface{}{
-		"code":          41300,
-		"short_message": "Content Too Large",
-		"long_message":  "Content should not exceed " + fmt.Sprint(limit) + " B",
-	}
+	apierrors.Load()
+	apiError := apierrors.FromStatusOrFallback(http.StatusRequestEntityTooLarge)
+	apiError.Payload.LongMessage = fmt.Sprintf("Content length should not exceed %d B", limit)
 
 	return func(c *gin.Context) {
 		if ExceedsSizeLimit(c, limit) {
-			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, respBody)
+			c.Writer.Header().Set(apierrors.ErrorCodeHeader, apiError.Payload.Code)
+			c.AbortWithStatusJSON(apiError.StatusCode, apiError.Payload)
 			return
 		}
 		handlerFunc(c)
