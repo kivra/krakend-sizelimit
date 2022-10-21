@@ -9,11 +9,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	apierrors "github.com/kivra/kivra-api-errors"
-	correlationid "github.com/kivra/krakend-correlationid"
 	"github.com/luraproject/lura/v2/config"
 	"github.com/luraproject/lura/v2/proxy"
 	krakendgin "github.com/luraproject/lura/v2/router/gin"
 )
+
+var AbortHandlerFunc = func(apiError *apierrors.ApiError, logMessage string, c *gin.Context) {
+	c.AbortWithStatusJSON(apiError.StatusCode, apiError.Payload)
+}
 
 func ExceedsSizeLimit(c *gin.Context, limit int64) bool {
 	contentLength := c.Request.Header.Get("Content-Length")
@@ -35,9 +38,7 @@ func LimiterFactory(limit int64, handlerFunc gin.HandlerFunc) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		if ExceedsSizeLimit(c, limit) {
-			c.Writer.Header().Set(apierrors.ErrorCodeHeader, apiError.Payload.Code)
-			c.Writer.Header().Set(correlationid.Header, c.Request.Header.Get(correlationid.Header))
-			c.AbortWithStatusJSON(apiError.StatusCode, apiError.Payload)
+			AbortHandlerFunc(&apiError, apiError.Payload.LongMessage, c)
 			return
 		}
 		handlerFunc(c)
